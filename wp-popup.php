@@ -3,7 +3,7 @@
 /**
  * Plugin Name: WP Popup
  * Description: 時間またはスクロールでポップアップを表示するプラグインです。
- * Version: 1.4
+ * Version: 1.5.0
  * Author: TAKUMA YOSHIZUMI
  * Author URI: https://yoshizumi.tech
  */
@@ -393,4 +393,45 @@ function wpp_hex_to_rgb_array($hex)
         return [hexdec("$r$r"), hexdec("$g$g"), hexdec("$b$b")];
     }
     return sscanf($hex, "%2s%2s%2s") ? [hexdec(substr($hex, 0, 2)), hexdec(substr($hex, 2, 2)), hexdec(substr($hex, 4, 2))] : [0, 0, 0];
+}
+
+// =============================================================================
+// 6. プラグインの自動更新機能
+// =============================================================================
+
+add_filter('pre_set_site_transient_update_plugins', 'wpp_check_for_plugin_update');
+function wpp_check_for_plugin_update($transient)
+{
+    if (empty($transient->checked)) {
+        return $transient;
+    }
+
+    // サーバーに置いたJSONファイルのURL
+    $api_url = 'https://yoshizumi.tech/updates/wp-popup/info.json';
+
+    // 自分のプラグインのベース名 (例: wp-popup/wp-popup.php)
+    $plugin_basename = plugin_basename(__FILE__);
+
+    // APIから情報を取得
+    $response = wp_remote_get($api_url);
+
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+        return $transient;
+    }
+
+    $remote_plugin_info = json_decode(wp_remote_retrieve_body($response));
+
+    if (
+        $remote_plugin_info &&
+        version_compare($transient->checked[$plugin_basename], $remote_plugin_info->version, '<')
+    ) {
+        $transient->response[$plugin_basename] = (object)[
+            'slug'        => $remote_plugin_info->slug,
+            'new_version' => $remote_plugin_info->version,
+            'url'         => 'https://yoshizumi.tech', // プロジェクトのURLなど
+            'package'     => $remote_plugin_info->download_url,
+        ];
+    }
+
+    return $transient;
 }
